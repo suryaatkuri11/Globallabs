@@ -307,64 +307,66 @@ def scan_all_ipam_subnets():
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for vc_identifier, vc_subnets in vc_map.items():
-        vc_known_ips = set()
+        vc_known_ips = {} # Map IP -> VM Name
         vc_rec = find_vcenter_record(vc_identifier)
         vc_host = vc_rec.get("host") if vc_rec else vc_identifier
         username = vc_rec.get("username", "") if vc_rec else ""
         pwd = get_vaulted_password(vc_host)
         
-        if not username:
-            for v in load_vcenters():
-                if isinstance(v, dict) and normalize_host(v.get("host")) == normalize_host(vc_host):
-                    username = v.get("username", "")
-                    if not pwd: pwd = get_vaulted_password(v.get("host"))
-                    break
-
-        # 1. Gather VMware Tools IPs
+        # 1. Gather VMware IPs and VM Names
         if pwd and username and vc_host:
             try:
                 si = connect_vcenter(vc_host, username, pwd)
                 if si:
-                    vm_props = get_properties(si, vim.VirtualMachine, ['guest.ipAddress', 'guest.net'])
+                    vm_props = get_properties(si, vim.VirtualMachine, ['name', 'guest.ipAddress', 'guest.net'])
                     for vm in vm_props:
-                        if vm.get('guest.ipAddress'): vc_known_ips.add(vm['guest.ipAddress'])
+                        vm_name = vm.get('name', 'Unknown VM')
+                        if vm.get('guest.ipAddress'): 
+                            vc_known_ips[vm['guest.ipAddress']] = vm_name
                         if vm.get('guest.net'):
                             for nic in vm['guest.net']:
                                 if hasattr(nic, 'ipConfig') and nic.ipConfig:
                                     for ip in getattr(nic.ipConfig, 'ipAddress', []):
                                         if hasattr(ip, 'ipAddress') and ip.ipAddress:
-                                            vc_known_ips.add(ip.ipAddress)
+                                            vc_known_ips[ip.ipAddress] = vm_name
                     Disconnect(si)
             except Exception as e:
                 print(f"[IPAM] VC Scan failed for {vc_host}: {e}")
 
-        # 2. Iterate IPs and Ping fallback
+        # 2. Iterate IPs, lock active ones, and free dead ones
         for sub in vc_subnets:
             sub_id = sub[0]
-            cursor.execute("SELECT id, ip_address, is_manual, status FROM ipam_ips WHERE subnet_id = ?", (sub_id,))
+            cursor.execute("SELECT id, ip_address, is_manual, status, reason FROM ipam_ips WHERE subnet_id = ?", (sub_id,))
             ips = cursor.fetchall()
             
             def check_ip(ip_row):
-                ip_id, ip_addr, is_manual, current_status = ip_row
+                ip_id, ip_addr, is_manual, current_status = ip_row[0], ip_row[1], ip_row[2], ip_row[3]
+                current_reason = ip_row[4] if len(ip_row) > 4 else ""
                 if is_manual == 1: return None 
                 
-                # Check VC first, then Ping
-                is_used = (ip_addr in vc_known_ips) or ping_ip(ip_addr)
-                new_status = "In Use" if is_used else "Free"
+                # Check VC first (gets VM Name), then Ping fallback
+                if ip_addr in vc_known_ips:
+                    new_status = "In Use"
+                    reason = f"vCenter VM: {vc_known_ips[ip_addr]}"
+                elif ping_ip(ip_addr):
+                    new_status = "In Use"
+                    reason = "Active (Ping Response)"
+                else:
+                    new_status = "Free"
+                    reason = ""
                 
-                if new_status != current_status:
-                    return (new_status, now_str, ip_id)
+                if new_status != current_status or reason != (current_reason or ""):
+                    return (new_status, reason, now_str, ip_id)
                 return None
 
-            # Multi-thread the ping checks for speed
             updates = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
                 results = executor.map(check_ip, ips)
                 for res in results:
                     if res: updates.append(res)
             
             if updates:
-                cursor.executemany("UPDATE ipam_ips SET status = ?, last_scanned = ? WHERE id = ?", updates)
+                cursor.executemany("UPDATE ipam_ips SET status = ?, reason = ?, last_scanned = ? WHERE id = ?", updates)
 
     conn.commit()
     conn.close()
@@ -1038,13 +1040,12 @@ def discover_vcenters_from_subnet():
     if not subnet: return jsonify({"error": "Subnet not found"}), 404
     network = ipaddress.IPv4Network(subnet[0], strict=False)
     
-    found_vcenters = []
+    configured_hosts = [normalize_host(vc.get("host")) for vc in load_vcenters() if isinstance(vc, dict)]
+    recognized = []
     
     def probe_vc(ip):
-        # 1. Use the fast ping_ip logic from IPAM first
         if ping_ip(ip):
             try:
-                # 2. Only check HTTP if host is alive
                 resp = requests.get(f"https://{ip}/", verify=False, timeout=2)
                 if "VMware vSphere" in resp.text or "ID_VC" in resp.text:
                     return str(ip)
@@ -1054,9 +1055,10 @@ def discover_vcenters_from_subnet():
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         results = executor.map(probe_vc, network.hosts())
         for res in results:
-            if res: found_vcenters.append(res)
+            if res and normalize_host(res) not in configured_hosts:
+                recognized.append(res)
             
-    return jsonify({"discovered": found_vcenters})
+    return jsonify({"recognized_vcenters": recognized, "discovered": recognized})
 
 def fetch_explorer_data():
     # Builds the nested VC -> Host -> Datastore/VM hierarchy
@@ -1344,47 +1346,36 @@ def internal_chatbot():
     
     if session_id not in chat_sessions or prompt in ["reset", "clear", "start over", "new session"]:
         chat_sessions[session_id] = {"intent": "deploy", "params": {}}
-        if prompt in ["reset", "clear", "start over", "new session"]:
-            return jsonify({"reply": "Session reset. How can I assist you with VM deployment?", "ready": False, "params": {}})
+        if prompt in ["reset", "clear", "start over"]:
+            return jsonify({"reply": "Session reset. Let's build some VMs. What template and vCenter are we using?", "ready": False, "params": {}})
         
     session = chat_sessions[session_id]
     params = session["params"]
 
-    # Keyword Extraction using Regex
-    if "deploy" in prompt or "create" in prompt or "build" in prompt or "spin up" in prompt or "vm" in prompt:
-        count_match = re.search(r'(\d+)\s+(?:vms?|virtual machines?|nodes?|instances?)', prompt)
-        if not count_match:
-            count_match = re.search(r'count(?:\s+is)?\s+(\d+)', prompt)
-        if count_match: 
-            params["vmCount"] = int(count_match.group(1))
+    # Keyword Extraction
+    count_match = re.search(r'(\d+)\s+(?:vms?|virtual machines?|nodes?|instances?)', prompt)
+    if not count_match: count_match = re.search(r'count(?:\s+is)?\s+(\d+)', prompt)
+    if count_match: params["vmCount"] = int(count_match.group(1))
         
     if "vcenter" in prompt:
         vc_match = re.search(r'vcenter\s+(?:is\s+)?([a-zA-Z0-9.-]+)', prompt)
-        if vc_match: 
-            params["vcenter"] = vc_match.group(1)
+        if vc_match: params["vcenter"] = vc_match.group(1)
     else:
-        # Check against configured vcenters
         for vc in load_vcenters():
-            if not isinstance(vc, dict): continue
-            h = str(vc.get("host", "")).lower()
-            n = str(vc.get("name", "")).lower()
-            if (h and h in prompt) or (n and n in prompt):
+            if isinstance(vc, dict) and (str(vc.get("host", "")).lower() in prompt or str(vc.get("name", "")).lower() in prompt):
                 params["vcenter"] = vc.get("host")
                 break
         
     if "template" in prompt:
         tmpl_match = re.search(r'template\s+(?:is\s+)?([a-zA-Z0-9._-]+)', prompt)
-        if tmpl_match: 
-            params["template"] = tmpl_match.group(1)
+        if tmpl_match: params["template"] = tmpl_match.group(1)
         
-    # Check Missing requirements
     required = ["vcenter", "template", "vmCount"]
     missing = [req for req in required if req not in params]
     
     if missing:
-        return jsonify({"reply": f"I have captured: {params}. I still need: {', '.join(missing)}.", "ready": False, "params": params})
+        return jsonify({"reply": f"Got it. I have {params}. To proceed, I still need: {', '.join(missing)}.", "ready": False, "params": params})
     
-    # Trigger deployment internally instead of redirecting
     def background_chatbot_deploy(deploy_params):
         try:
             vc_target = deploy_params["vcenter"]
@@ -1393,18 +1384,23 @@ def internal_chatbot():
             actual_user = vc_rec.get("username", "administrator@vsphere.local") if vc_rec else "administrator@vsphere.local"
             actual_pwd = get_vaulted_password(actual_host)
             
-            # Find an IPAM subnet for this vCenter if available
-            ipam_sub_id = ""
+            # Fetch corresponding IPAM subnet to avoid hardcoded IPs
             conn = sqlite3.connect(INVENTORY_DB)
             c = conn.cursor()
-            c.execute("SELECT id FROM ipam_subnets WHERE vcenter = ? OR vcenter = ? LIMIT 1", (actual_host, vc_target))
+            c.execute("SELECT id FROM ipam_subnets WHERE vcenter = ? LIMIT 1", (actual_host,))
             row = c.fetchone()
+            if not row:
+                c.execute("SELECT id FROM ipam_subnets WHERE vcenter = ? LIMIT 1", (vc_target,))
+                row = c.fetchone()
             if not row:
                 c.execute("SELECT id FROM ipam_subnets LIMIT 1")
                 row = c.fetchone()
-            if row:
-                ipam_sub_id = row[0]
+            ipam_sub_id = row[0] if row else None
             conn.close()
+
+            if not ipam_sub_id:
+                print(f"[CHATBOT] Error: No IPAM subnet onboarded for vCenter {actual_host}")
+                return
 
             payload = {
                 "vcenter": actual_host,
@@ -1412,33 +1408,23 @@ def internal_chatbot():
                 "vmCount": deploy_params["vmCount"],
                 "username": actual_user,
                 "password": actual_pwd,
-                "ipMode": "ipam" if ipam_sub_id else "series",
+                "ipMode": "ipam",
                 "ipamSubnetId": ipam_sub_id,
-                "startingIp": "192.168.10.100",
-                "subnet": "255.255.255.0",
-                "gateway": "192.168.10.1",
-                "dns": "8.8.8.8",
-                "localAdminPassword": "Password@123",
                 "namingContext": "BOT-VM-",
-                "cpu": 2,
-                "memory": 4,
-                "disk": 40,
-                "autoPlacement": True
+                "cpu": 2, "memory": 4, "disk": 40,
+                "localAdminPassword": "Password@123"
             }
-            # Make internal POST to deploy endpoint logic
             requests.post("http://127.0.0.1:5052/api/deploy", json=payload, timeout=600)
             APP_CACHE.pop("explorer_data", None)
         except Exception as e:
             print(f"[CHATBOT DEPLOY ERROR] {e}")
 
     threading.Thread(target=background_chatbot_deploy, args=(params,), daemon=True).start()
-    
-    # Reset session after initiating
     chat_sessions[session_id] = {"intent": "deploy", "params": {}}
     
     return jsonify({
-        "reply": f"Understood. I am directly initiating the deployment of {params['vmCount']} VMs from template '{params['template']}' on '{params['vcenter']}' in the background.",
-        "ready": False, # Kept false to prevent UI redirect
+        "reply": f"All set. I'm dynamically pulling available IPs from IPAM and provisioning {params['vmCount']} VMs from '{params['template']}' on '{params['vcenter']}'.",
+        "ready": True,
         "params": {}
     })
 
