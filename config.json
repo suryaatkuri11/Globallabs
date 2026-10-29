@@ -1,0 +1,14 @@
+{
+    "vcenter": "YOUR_VCENTER_IP_OR_FQDN",
+    "username": "YOUR_USERNAME",
+    "cpu": 4,
+    "memory_gb": 8,
+    "disk_gb": 100,
+    "naming_context": "HDS",
+    "subnet_mask": "255.255.255.0",
+    "gateway": "192.168.1.1",
+    "dns_server": "192.168.1.10",
+    "datacenter": "YOUR_DATACENTER",
+    "template": "YOUR_TEMPLATE",
+    "network": "YOUR_NETWORK"
+}

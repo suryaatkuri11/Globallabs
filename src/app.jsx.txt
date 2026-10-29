@@ -1,0 +1,615 @@
+import { useState } from "react";
+import "./index.css";
+
+const vCenters = [
+  {
+    id: 1,
+    name: "Production vCenter",
+    address: "10.10.10.20",
+    username: "administrator@vsphere.local",
+  },
+  {
+    id: 2,
+    name: "DR vCenter",
+    address: "10.20.10.20",
+    username: "administrator@vsphere.local",
+  },
+];
+
+function App() {
+  const [activePage, setActivePage] = useState("dashboard");
+  const [selectedVC, setSelectedVC] = useState("");
+
+  const menuItems = [
+    { id: "dashboard", label: "Dashboard", icon: "⌂" },
+    { id: "deploy", label: "Deploy VM", icon: "▣" },
+    { id: "vcenters", label: "vCenters", icon: "◈" },
+    { id: "history", label: "History", icon: "◷" },
+  ];
+
+  return (
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-logo">V</div>
+          <div>
+            <h1>VM Deploy</h1>
+            <span>VMware Automation</span>
+          </div>
+        </div>
+
+        <nav className="navigation">
+          <div className="nav-title">MAIN MENU</div>
+
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item ${
+                activePage === item.id ? "active" : ""
+              }`}
+              onClick={() => setActivePage(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="connection-status">
+            <span className="status-dot"></span>
+            <div>
+              <strong>System Ready</strong>
+              <small>Backend not connected</small>
+            </div>
+          </div>
+
+          <div className="version">
+            VMware Deployer v1.0
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-content">
+        <header className="topbar">
+          <div>
+            <p className="breadcrumb">VMware Automation</p>
+            <h2>
+              {activePage === "dashboard" && "Dashboard"}
+              {activePage === "deploy" && "Deploy Windows VMs"}
+              {activePage === "vcenters" && "vCenter Management"}
+              {activePage === "history" && "Deployment History"}
+            </h2>
+          </div>
+
+          <div className="topbar-right">
+            <div className="user-avatar">A</div>
+          </div>
+        </header>
+
+        <section className="content">
+          {activePage === "dashboard" && (
+            <Dashboard setActivePage={setActivePage} />
+          )}
+
+          {activePage === "deploy" && (
+            <DeployPage
+              vCenters={vCenters}
+              selectedVC={selectedVC}
+              setSelectedVC={setSelectedVC}
+            />
+          )}
+
+          {activePage === "vcenters" && (
+            <VCentersPage />
+          )}
+
+          {activePage === "history" && (
+            <HistoryPage />
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function Dashboard({ setActivePage }) {
+  return (
+    <>
+      <div className="welcome-section">
+        <div>
+          <h3>Welcome back 👋</h3>
+          <p>
+            Manage your VMware virtual machine deployments from one place.
+          </p>
+        </div>
+
+        <button
+          className="primary-button"
+          onClick={() => setActivePage("deploy")}
+        >
+          + Deploy VM
+        </button>
+      </div>
+
+      <div className="stats-grid">
+        <StatCard
+          title="Configured vCenters"
+          value="2"
+          subtitle="Available connections"
+          icon="◈"
+          color="blue"
+        />
+
+        <StatCard
+          title="VMs Deployed"
+          value="24"
+          subtitle="Total deployments"
+          icon="▣"
+          color="green"
+        />
+
+        <StatCard
+          title="Successful"
+          value="22"
+          subtitle="Successful deployments"
+          icon="✓"
+          color="purple"
+        />
+
+        <StatCard
+          title="Failed"
+          value="2"
+          subtitle="Requires attention"
+          icon="!"
+          color="orange"
+        />
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3>Quick Actions</h3>
+              <p>Common VMware operations</p>
+            </div>
+          </div>
+
+          <div className="quick-actions">
+            <button onClick={() => setActivePage("deploy")}>
+              <span>▣</span>
+              <div>
+                <strong>Deploy Windows VM</strong>
+                <small>Clone and configure VMs</small>
+              </div>
+            </button>
+
+            <button onClick={() => setActivePage("vcenters")}>
+              <span>◈</span>
+              <div>
+                <strong>Manage vCenters</strong>
+                <small>Add or manage connections</small>
+              </div>
+            </button>
+
+            <button onClick={() => setActivePage("history")}>
+              <span>◷</span>
+              <div>
+                <strong>View History</strong>
+                <small>Check previous deployments</small>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3>Recent Activity</h3>
+              <p>Latest deployment activity</p>
+            </div>
+          </div>
+
+          <div className="activity-list">
+            <Activity
+              name="HDS231100"
+              ip="10.10.231.100"
+              status="Success"
+            />
+
+            <Activity
+              name="HDS231101"
+              ip="10.10.231.101"
+              status="Success"
+            />
+
+            <Activity
+              name="MGM245120"
+              ip="10.20.245.120"
+              status="Failed"
+            />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function StatCard({ title, value, subtitle, icon, color }) {
+  return (
+    <div className="stat-card">
+      <div className={`stat-icon ${color}`}>
+        {icon}
+      </div>
+
+      <div>
+        <span className="stat-title">{title}</span>
+        <strong className="stat-value">{value}</strong>
+        <small>{subtitle}</small>
+      </div>
+    </div>
+  );
+}
+
+function Activity({ name, ip, status }) {
+  return (
+    <div className="activity-item">
+      <div className="activity-icon">▣</div>
+
+      <div className="activity-info">
+        <strong>{name}</strong>
+        <span>{ip}</span>
+      </div>
+
+      <span
+        className={`badge ${
+          status === "Success" ? "success" : "failed"
+        }`}
+      >
+        {status}
+      </span>
+    </div>
+  );
+}
+
+function DeployPage({
+  vCenters,
+  selectedVC,
+  setSelectedVC,
+}) {
+  return (
+    <div>
+      <div className="page-intro">
+        <h3>Deploy Windows VMs</h3>
+        <p>
+          Select a configured vCenter and provide the deployment
+          information.
+        </p>
+      </div>
+
+      <div className="form-card">
+        <div className="form-section">
+          <div className="section-title">
+            <span className="section-number">1</span>
+            <div>
+              <h3>vCenter Connection</h3>
+              <p>Select the vCenter you want to use.</p>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Select vCenter</label>
+
+              <select
+                value={selectedVC}
+                onChange={(e) =>
+                  setSelectedVC(e.target.value)
+                }
+              >
+                <option value="">
+                  Select a configured vCenter
+                </option>
+
+                {vCenters.map((vc) => (
+                  <option
+                    key={vc.id}
+                    value={vc.id}
+                  >
+                    {vc.name} — {vc.address}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Username</label>
+
+              <input
+                type="text"
+                placeholder="administrator@vsphere.local"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+
+              <input
+                type="password"
+                placeholder="Enter password"
+              />
+
+              <small className="field-help">
+                Password is entered only for this deployment
+                and is not stored.
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-divider"></div>
+
+        <div className="form-section">
+          <div className="section-title">
+            <span className="section-number">2</span>
+
+            <div>
+              <h3>VM Configuration</h3>
+              <p>
+                These options will be populated from vCenter
+                after connection.
+              </p>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Template</label>
+
+              <select>
+                <option>
+                  Connect to vCenter first
+                </option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Network / Port Group</label>
+
+              <select>
+                <option>
+                  Connect to vCenter first
+                </option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>CPU Count</label>
+
+              <input
+                type="number"
+                placeholder="4"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Memory (GB)</label>
+
+              <input
+                type="number"
+                placeholder="8"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Disk Size (GB)</label>
+
+              <input
+                type="number"
+                placeholder="100"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Number of VMs</label>
+
+              <input
+                type="number"
+                placeholder="1"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="form-divider"></div>
+
+        <div className="form-section">
+          <div className="section-title">
+            <span className="section-number">3</span>
+
+            <div>
+              <h3>Network Configuration</h3>
+              <p>
+                Configure the starting IP and Windows network
+                settings.
+              </p>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Naming Context</label>
+
+              <input
+                type="text"
+                placeholder="HDS"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Starting IP Address</label>
+
+              <input
+                type="text"
+                placeholder="10.10.231.100"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Subnet Mask</label>
+
+              <input
+                type="text"
+                placeholder="255.255.255.0"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Gateway</label>
+
+              <input
+                type="text"
+                placeholder="10.10.231.1"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>DNS Server</label>
+
+              <input
+                type="text"
+                placeholder="10.10.10.10"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Administrator Password</label>
+
+              <input
+                type="password"
+                placeholder="Windows Administrator password"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button className="secondary-button">
+            Reset
+          </button>
+
+          <button className="primary-button">
+            Review Deployment →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VCentersPage() {
+  return (
+    <div>
+      <div className="page-intro-row">
+        <div>
+          <h3>vCenter Management</h3>
+          <p>
+            Manage the vCenters available for deployment.
+          </p>
+        </div>
+
+        <button className="primary-button">
+          + Add vCenter
+        </button>
+      </div>
+
+      <div className="vc-grid">
+        {vCenters.map((vc) => (
+          <div className="vc-card" key={vc.id}>
+            <div className="vc-card-top">
+              <div className="vc-icon">V</div>
+
+              <span className="badge success">
+                Configured
+              </span>
+            </div>
+
+            <h3>{vc.name}</h3>
+
+            <div className="vc-detail">
+              <span>Address</span>
+              <strong>{vc.address}</strong>
+            </div>
+
+            <div className="vc-detail">
+              <span>Username</span>
+              <strong>{vc.username}</strong>
+            </div>
+
+            <div className="vc-actions">
+              <button>Edit</button>
+              <button className="delete-button">
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HistoryPage() {
+  return (
+    <div>
+      <div className="page-intro">
+        <h3>Deployment History</h3>
+        <p>
+          View your previous VMware VM deployments.
+        </p>
+      </div>
+
+      <div className="card history-card">
+        <div className="history-header">
+          <span>VM Name</span>
+          <span>IP Address</span>
+          <span>vCenter</span>
+          <span>Status</span>
+          <span>Date</span>
+        </div>
+
+        <div className="history-row">
+          <strong>HDS231100</strong>
+          <span>10.10.231.100</span>
+          <span>Production vCenter</span>
+          <span className="badge success">
+            Success
+          </span>
+          <span>Today</span>
+        </div>
+
+        <div className="history-row">
+          <strong>HDS231101</strong>
+          <span>10.10.231.101</span>
+          <span>Production vCenter</span>
+          <span className="badge success">
+            Success
+          </span>
+          <span>Today</span>
+        </div>
+
+        <div className="history-row">
+          <strong>MGM245120</strong>
+          <span>10.20.245.120</span>
+          <span>DR vCenter</span>
+          <span className="badge failed">
+            Failed
+          </span>
+          <span>Yesterday</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

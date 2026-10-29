@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #0b0f19;
+}
+
+/* Custom sleek scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0b0f19; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* IPAM Table Styling */
+.ipam-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+  color: #d1d5db;
+}
+
+.ipam-table th {
+  background-color: #111827;
+  color: #9ca3af;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #374151;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.ipam-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #1f2937;
+  vertical-align: middle;
+}
+
+.ipam-table tbody tr:hover {
+  background-color: rgba(31, 41, 55, 0.4);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.badge.free {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge.in\ use,
+.badge.in-use {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge.quarantined {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge.reserved {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Resource Progress Bars */
+.resource-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 140px;
+}
+
+.resource-bar span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.resource-bar progress {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #1f2937;
+  border: 1px solid #374151;
+}
+
+.resource-bar progress::-webkit-progress-bar {
+  background-color: #1f2937;
+  border-radius: 4px;
+}
+
+.resource-bar progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.resource-bar progress::-moz-progress-bar {
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  border-radius: 4px;
+}

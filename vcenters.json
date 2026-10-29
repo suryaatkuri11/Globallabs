@@ -1,0 +1,44 @@
+[
+    {
+        "name": "NetApp VC",
+        "host": "10.131.33.19",
+        "username": "administrator@vsphere.local",
+        "password": "RzFvYkAxQDIwMjQ="
+    },
+    {
+        "name": "CBOT VC",
+        "host": "10.130.80.45",
+        "username": "administrator@vsphere.local",
+        "password": "RzFvYkAxQDIwMjQ="
+    },
+    {
+        "name": "Cisco VC",
+        "host": "10.131.12.25",
+        "username": "administrator@vsphere.local",
+        "password": "RzFvYkAxQDIwMjQ="
+    },
+    {
+        "name": "Magnum VC",
+        "host": "10.134.15.200",
+        "username": "administrator@vsphere.local",
+        "password": "RzFvYkAxQDIwMjQ="
+    },
+    {
+        "name": "HP IDM VC",
+        "host": "10.131.89.29",
+        "username": "administrator@vsphere.local",
+        "password": "RzFvYkAxQDIwMjQ="
+    },
+    {
+        "name": "Xceed Siruseri Vc",
+        "host": "10.131.33.186",
+        "username": "administrator@vsphere.local",
+        "password": "VGNzIzEyMzQ="
+    },
+    {
+        "name": "MGM Xceed Vc",
+        "host": "10.134.15.40",
+        "username": "administrator@vsphere.local",
+        "password": "RzFvYkAxQDIwMjQ="
+    }
+]
